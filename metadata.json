@@ -1,0 +1,6 @@
+{
+  "name": "TenDayBellyFat",
+  "description": "Premium 10-day fitness plan to lose belly fat with structured workouts, diet plans, and progress tracking.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}

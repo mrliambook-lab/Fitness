@@ -4,6 +4,35 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { 
+  IonApp, 
+  IonContent, 
+  IonHeader, 
+  IonToolbar, 
+  IonTitle, 
+  IonIcon, 
+  setupIonicReact 
+} from '@ionic/react';
+
+/* Core CSS required for Ionic components to work properly */
+import '@ionic/react/css/core.css';
+
+/* Basic CSS for apps built with Ionic */
+import '@ionic/react/css/normalize.css';
+import '@ionic/react/css/structure.css';
+import '@ionic/react/css/typography.css';
+
+/* Optional CSS utils that can be commented out */
+import '@ionic/react/css/padding.css';
+import '@ionic/react/css/float-elements.css';
+import '@ionic/react/css/text-alignment.css';
+import '@ionic/react/css/text-transformation.css';
+import '@ionic/react/css/flex-utils.css';
+import '@ionic/react/css/display.css';
+
+import { Preferences } from '@capacitor/preferences';
+import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
+
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowRight, 
@@ -84,7 +113,11 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
   return canvas.toDataURL('image/jpeg');
 };
 
-// --- Components ---
+setupIonicReact({
+  mode: 'md' // Consistent Android feel
+});
+
+// --- Constants ---
 
 const Button = ({ 
   children, 
@@ -189,49 +222,62 @@ export default function App() {
 
   // Load persistence
   useEffect(() => {
-    const savedUserData = localStorage.getItem('fit_belly_user_data');
-    const savedWorkoutProgress = localStorage.getItem('fit_belly_workout_progress');
-    const savedDietProgress = localStorage.getItem('fit_belly_diet_progress');
+    const loadData = async () => {
+      const { value: savedUserData } = await Preferences.get({ key: 'fit_belly_user_data' });
+      const { value: savedWorkoutProgress } = await Preferences.get({ key: 'fit_belly_workout_progress' });
+      const { value: savedDietProgress } = await Preferences.get({ key: 'fit_belly_diet_progress' });
 
-    if (savedUserData) {
-      try {
-        setUserData(JSON.parse(savedUserData));
-      } catch (e) {
-        console.error('Failed to load user data', e);
+      if (savedUserData) {
+        try {
+          setUserData(JSON.parse(savedUserData));
+        } catch (e) {
+          console.error('Failed to load user data', e);
+        }
       }
-    }
-    if (savedWorkoutProgress) {
-      try {
-        setWorkoutProgress(JSON.parse(savedWorkoutProgress));
-      } catch (e) {
-        console.error('Failed to load workout progress', e);
+      if (savedWorkoutProgress) {
+        try {
+          setWorkoutProgress(JSON.parse(savedWorkoutProgress));
+        } catch (e) {
+          console.error('Failed to load workout progress', e);
+        }
       }
-    }
-    if (savedDietProgress) {
-      try {
-        setDietProgress(JSON.parse(savedDietProgress));
-      } catch (e) {
-        console.error('Failed to load diet progress', e);
+      if (savedDietProgress) {
+        try {
+          setDietProgress(JSON.parse(savedDietProgress));
+        } catch (e) {
+          console.error('Failed to load diet progress', e);
+        }
       }
-    }
+    };
+
+    loadData();
   }, []);
 
   // Save persistence
   useEffect(() => {
     if (userData.onboardingComplete) {
-      localStorage.setItem('fit_belly_user_data', JSON.stringify(userData));
+      Preferences.set({
+        key: 'fit_belly_user_data',
+        value: JSON.stringify(userData)
+      });
     }
   }, [userData]);
 
   useEffect(() => {
     if (userData.onboardingComplete) {
-      localStorage.setItem('fit_belly_workout_progress', JSON.stringify(workoutProgress));
+      Preferences.set({
+        key: 'fit_belly_workout_progress',
+        value: JSON.stringify(workoutProgress)
+      });
     }
   }, [workoutProgress, userData.onboardingComplete]);
 
   useEffect(() => {
     if (userData.onboardingComplete) {
-      localStorage.setItem('fit_belly_diet_progress', JSON.stringify(dietProgress));
+      Preferences.set({
+        key: 'fit_belly_diet_progress',
+        value: JSON.stringify(dietProgress)
+      });
     }
   }, [dietProgress, userData.onboardingComplete]);
 
@@ -256,12 +302,13 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex justify-center items-start sm:py-8">
-      {/* Mobile Wrapper */}
-      <div className="w-full max-w-[420px] aspect-[9/19.5] bg-white sm:rounded-[3rem] sm:shadow-2xl shadow-black/20 overflow-hidden relative border-8 border-gray-900 ring-4 ring-gray-800">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-900 rounded-b-3xl z-50"></div>
-        
-        <AnimatePresence mode="wait">
+    <IonApp>
+      <IonContent>
+        <div className="min-h-screen bg-gray-50 flex justify-center items-start">
+          {/* Mobile Wrapper */}
+          <div className="w-full max-w-[420px] min-h-screen bg-white overflow-hidden relative shadow-soft">
+            
+            <AnimatePresence mode="wait">
           <motion.div
             key={screen}
             initial={{ opacity: 0, x: 20 }}
@@ -446,8 +493,10 @@ export default function App() {
             />
           </div>
         )}
-      </div>
-    </div>
+        </div>
+        </div>
+      </IonContent>
+    </IonApp>
   );
 }
 
@@ -1595,19 +1644,22 @@ const ProfileScreen = ({ userData, navigate, setUserData }: any) => {
   const [imageToCrop, setImageToCrop] = useState<string | null>(null);
   const [showCropper, setShowCropper] = useState(false);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImageToCrop(reader.result as string);
+  const takePhoto = async (source: CameraSource) => {
+    try {
+      const image = await CapCamera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: source
+      });
+      
+      if (image.dataUrl) {
+        setImageToCrop(image.dataUrl);
         setShowCropper(true);
         setShowOptions(false);
-      };
-      reader.readAsDataURL(file);
+      }
+    } catch (e) {
+      console.error('Camera error:', e);
     }
   };
 
@@ -1621,34 +1673,17 @@ const ProfileScreen = ({ userData, navigate, setUserData }: any) => {
     {
       label: 'Take Photo',
       icon: <Camera size={20} />,
-      onClick: () => cameraInputRef.current?.click()
+      onClick: () => takePhoto(CameraSource.Camera)
     },
     {
       label: 'Upload from Gallery',
       icon: <ImageIcon size={20} />,
-      onClick: () => fileInputRef.current?.click()
+      onClick: () => takePhoto(CameraSource.Photos)
     }
   ];
 
   return (
     <div className="p-6 space-y-8">
-      {/* Hidden Inputs */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={onFileChange} 
-        accept="image/*" 
-        className="hidden" 
-      />
-      <input 
-        type="file" 
-        ref={cameraInputRef} 
-        onChange={onFileChange} 
-        accept="image/*" 
-        capture="environment" 
-        className="hidden" 
-      />
-
       <AnimatePresence>
         {showCropper && imageToCrop && (
           <ImageCropModal 

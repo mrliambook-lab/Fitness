@@ -1,0 +1,6 @@
+{
+	"appId": "com.tendaybellyfat.app",
+	"appName": "TenDayBellyFat",
+	"webDir": "dist",
+	"bundledWebRuntime": false
+}
